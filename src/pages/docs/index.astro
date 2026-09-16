@@ -1,0 +1,33 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Section from '../../components/Section.astro';
+import Card from '../../components/Card.astro';
+import { humanCase } from '../../utils/formatter';
+import { getSortedDocs, getDocLanguage } from '../../utils/collections';
+
+const docs = await getSortedDocs();
+
+// Build one entry per SDK language, pointing at its first (lowest-order) doc page.
+const languages = Object.values(
+	docs.reduce((acc, doc) => {
+		const language = getDocLanguage(doc.id);
+		// `docs` is pre-sorted by order, so the first seen page per language is its landing page.
+		acc[language] = acc[language] ?? { language, landingId: doc.id };
+		return acc;
+	}, {} as Record<string, { language: string; landingId: string }>)
+);
+---
+
+<Layout title="SDK Documentation" description="Documentation for the Serverless Workflow SDKs.">
+	<Section title="SDK Documentation" subTitle="Use the Serverless Workflow DSL from your language of choice." isGrid={true}>
+		{
+			languages.map(({ language, landingId }) => (
+				<a href={`/docs/${landingId}/`} class="no-underline">
+					<Card title={`${humanCase(language)} SDK`} alignment="start">
+						<p>Read, write, validate and run Serverless Workflow definitions in {humanCase(language)}.</p>
+					</Card>
+				</a>
+			))
+		}
+	</Section>
+</Layout>

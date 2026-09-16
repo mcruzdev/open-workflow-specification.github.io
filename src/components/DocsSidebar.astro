@@ -1,0 +1,48 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { humanCase } from '../utils/formatter';
+import { getDocLanguage } from '../utils/collections';
+
+interface Props {
+	entries: CollectionEntry<'docs'>[];
+	activeId?: string;
+}
+const { entries, activeId } = Astro.props;
+
+// Group docs by language (first segment of the id, e.g. `java/getting-started`).
+// `entries` are expected to be pre-sorted by order, so each group keeps that order.
+const groupedEntries = entries.reduce((groups, entry) => {
+	const language = getDocLanguage(entry.id);
+	groups[language] = groups[language] || [];
+	groups[language].push(entry);
+	return groups;
+}, {} as Record<string, CollectionEntry<'docs'>[]>);
+---
+<div class="bg-base-100 text-base-content min-h-full w-80 p-4 border-r">
+  <a href="/docs" class="font-bold">Docs</a>
+  <ul class="menu">
+    {
+      Object.entries(groupedEntries).map(([language, docs]) => {
+        const isActiveGroup = docs.some(doc => doc.id === activeId);
+        return (
+          <li>
+            <details open={isActiveGroup}>
+              <summary>{humanCase(language)}</summary>
+              <ul>
+                {
+                  docs.map(doc => (
+                    <li>
+                      <a href={`/docs/${doc.id}/`} class={doc.id === activeId ? 'menu-active' : ''}>
+                        {doc.data.title}
+                      </a>
+                    </li>
+                  ))
+                }
+              </ul>
+            </details>
+          </li>
+        );
+      })
+    }
+  </ul>
+</div>
