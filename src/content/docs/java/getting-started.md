@@ -20,13 +20,18 @@ stream targets **Specification 1.0.0**.
 
 The SDK is split into focused modules so you only pull in what you need. This guide uses three:
 
-- **`serverlessworkflow-api`** — the workflow object model (a hierarchy of POJOs generated from
-  the specification schema, rooted at `io.serverlessworkflow.api.types.Workflow`) plus the
-  `WorkflowReader`/`WorkflowWriter` helpers to read and write definitions as YAML or JSON.
-- **`serverlessworkflow-impl-core`** — the reference runtime that executes a definition:
-  `WorkflowApplication`, `WorkflowDefinition`, `WorkflowModel` and the task implementations.
-- **`serverlessworkflow-impl-jackson`** — the Jackson-based serialization backend the runtime
-  uses to convert workflow data to and from the in-memory model.
+- **`serverlessworkflow-api`** — the "define/read" layer. A hierarchy of POJOs generated from
+  the specification schema, rooted at `io.serverlessworkflow.api.types.Workflow`, plus the
+  `WorkflowReader`/`WorkflowWriter` helpers to read and write definitions as YAML or JSON. It
+  contains no execution logic.
+- **`serverlessworkflow-impl-core`** — the "execute" layer: the reference runtime that runs a
+  definition. Provides `WorkflowApplication` (the runtime entry point), `WorkflowDefinition`
+  (an executable, reusable definition), `WorkflowModel` (the runtime's data abstraction) and the
+  built-in task implementations. It is data-format agnostic and needs a concrete `WorkflowModel`
+  backend to actually hold and convert data.
+- **`serverlessworkflow-impl-jackson`** — the Jackson-based data backend that plugs into
+  `impl-core`: it provides the concrete `WorkflowModel` implementation and converts workflow data
+  to and from JSON via Jackson.
 
 ## Add the dependency
 
@@ -34,17 +39,25 @@ Add the three modules described above to your build. The SDK publishes a **BOM**
 (`serverlessworkflow-bom`) that aligns the versions of every module — import it once and you can
 drop the `<version>` from each individual dependency, so they can never drift out of sync.
 
+> Check the [sdk-java releases page](https://github.com/open-workflow-specification/sdk-java/releases)
+> for the latest published version, and use it wherever a version is needed below.
+
 ### Maven
 
-Import the BOM in your `dependencyManagement`, then declare the modules without versions:
+Set the version you found on the releases page as a property, import the BOM in your
+`dependencyManagement`, then declare the modules without versions:
 
 ```xml
+<properties>
+    <serverlessworkflow.bom.version>7.32.1.Final</serverlessworkflow.bom.version>
+</properties>
+
 <dependencyManagement>
     <dependencies>
         <dependency>
             <groupId>io.serverlessworkflow</groupId>
             <artifactId>serverlessworkflow-bom</artifactId>
-            <version>7.22.2.Final</version>
+            <version>${serverlessworkflow.bom.version}</version>
             <type>pom</type>
             <scope>import</scope>
         </dependency>
@@ -72,7 +85,7 @@ Import the BOM in your `dependencyManagement`, then declare the modules without 
 Use the BOM as a platform, then declare the modules without versions:
 
 ```groovy
-implementation platform('io.serverlessworkflow:serverlessworkflow-bom:7.22.2.Final')
+implementation platform('io.serverlessworkflow:serverlessworkflow-bom:7.32.1.Final')
 implementation 'io.serverlessworkflow:serverlessworkflow-api'
 implementation 'io.serverlessworkflow:serverlessworkflow-impl-core'
 implementation 'io.serverlessworkflow:serverlessworkflow-impl-jackson'
@@ -94,6 +107,10 @@ do:
         message: Hello World
 ```
 
+This `document` block and `set` task follow the
+[Serverless Workflow DSL specification](https://github.com/serverlessworkflow/specification), see it
+for the full list of available tasks and syntax.
+
 Then read it, run it and inspect the output:
 
 ```java
@@ -111,11 +128,11 @@ public class Main {
 
     public static void main(String ...args) throws IOException {
 
-        Workflow workflow = WorkflowReader.readWorkflowFromClasspath("simple.yaml"); // (1)
-        try (WorkflowApplication app = WorkflowApplication.builder().build()) {      // (2)
-            WorkflowDefinition def = app.workflowDefinition(workflow);               // (3)
-            WorkflowModel output = def.instance().start().join();                    // (4)
-            System.out.println("The message is: " + output.asMap().orElseThrow().get("message")); // (5) -> Hello World
+        Workflow workflow = WorkflowReader.readWorkflowFromClasspath("simple.yaml");
+        try (WorkflowApplication app = WorkflowApplication.builder().build()) {
+            WorkflowDefinition def = app.workflowDefinition(workflow);
+            WorkflowModel output = def.instance().start().join();
+            System.out.println("The message is: " + output.asMap().orElseThrow().get("message"));
         }
     }
 }
@@ -123,21 +140,32 @@ public class Main {
 
 ## What just happened?
 
-Running `Main` reads the definition, executes it and prints `The message is: Hello World`. Here is
-what each numbered line does:
+Running the `main()` method, the code reads the definition, executes it and prints `The message is: Hello World`. Here is
+what each line does:
 
-1. **Read the definition** — `WorkflowReader.readWorkflowFromClasspath` loads `simple.yaml` from the
-   classpath and parses it into a `Workflow`, the in-memory object model from the
-   `serverlessworkflow-api` module.
-2. **Create the application** — `WorkflowApplication` is the runtime entry point that holds the
-   shared configuration used to run workflows. It is `AutoCloseable`, so the try-with-resources
-   block releases its resources when you are done.
-3. **Build a definition** — `app.workflowDefinition(workflow)` turns the parsed model into an
-   executable `WorkflowDefinition` you can run as many times as you like.
-4. **Run an instance** — `def.instance().start()` starts a new execution and returns a
-   `CompletableFuture`; `.join()` waits for it to finish and yields the output as a `WorkflowModel`.
-5. **Read the output** — the `hello` task set `message` to `Hello World`, so `output.asMap()`
-   exposes that value, which we print.
+- **Line 15 — Read the definition.** `WorkflowReader.readWorkflowFromClasspath` loads `simple.yaml` from the
+  classpath and parses it into a `Workflow`, the in-memory object model from the
+  `serverlessworkflow-api` module.
+- **Line 16 — Create the application.** `WorkflowApplication` is the runtime entry point that holds the
+  shared configuration used to run workflows. It is `AutoCloseable`, so the try-with-resources
+  block releases its resources when you are done.
+- **Line 17 — Build a definition.** `app.workflowDefinition(workflow)` turns the parsed model into an
+  executable `WorkflowDefinition` you can run as many times as you like.
+- **Line 18 — Run an instance.** `def.instance().start()` starts a new execution and returns a
+  `CompletableFuture`; `.join()` waits for it to finish and yields the output as a `WorkflowModel`.
+- **Line 19 — Read the output.** the `hello` task set `message` to `Hello World`, so `output.asMap()`
+  exposes that value, which we print.
+
+## Recap
+
+In this tutorial, you:
+
+- Added the `serverlessworkflow-api`, `serverlessworkflow-impl-core` and `serverlessworkflow-impl-jackson`
+  modules to your build using the `serverlessworkflow-bom`.
+- Wrote a `simple.yaml` workflow definition following the Serverless Workflow DSL.
+- Used `WorkflowReader` to read the definition from the classpath into a `Workflow` object.
+- Built a `WorkflowApplication`, turned the `Workflow` into an executable `WorkflowDefinition`, and ran it to
+  produce a `WorkflowModel` output.
 
 ---
 

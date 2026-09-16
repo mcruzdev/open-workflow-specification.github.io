@@ -27,4 +27,21 @@ html[data-theme="dark"] .astro-code span {
   /*font-style: var(--shiki-dark-font-style) !important;
   font-weight: var(--shiki-dark-font-weight) !important;
   text-decoration: var(--shiki-dark-text-decoration) !important;*/
-} 
+}
+
+.astro-code code {
+  counter-reset: line;
+  display: grid;
+}
+
+.astro-code .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 1.75rem;
+  margin-right: 1rem;
+  text-align: right;
+  color: var(--color-neutral-content, #8b949e);
+  opacity: 0.6;
+  user-select: none;
+}

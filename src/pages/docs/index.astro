@@ -22,7 +22,7 @@ const languages = Object.values(
 	<Section title="SDK Documentation" subTitle="Use the Serverless Workflow DSL from your language of choice." isGrid={true}>
 		{
 			languages.map(({ language, landingId }) => (
-				<a href={`/docs/${landingId}/`} class="no-underline">
+				<a href={`/docs/${landingId}/`} class="no-underline sdk-card-link">
 					<Card title={`${humanCase(language)} SDK`} alignment="start">
 						<p>Read, write, validate and run Serverless Workflow definitions in {humanCase(language)}.</p>
 					</Card>
@@ -31,3 +31,16 @@ const languages = Object.values(
 		}
 	</Section>
 </Layout>
+
+<style>
+	.sdk-card-link :global(.card) {
+		transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+		border: 1px solid transparent;
+	}
+
+	.sdk-card-link:hover :global(.card) {
+		transform: translateY(-4px);
+		border-color: var(--color-primary);
+		box-shadow: 0 10px 20px -8px rgb(0 0 0 / 0.25);
+	}
+</style>
